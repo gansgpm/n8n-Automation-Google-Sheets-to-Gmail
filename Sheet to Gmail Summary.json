@@ -1,0 +1,200 @@
+{
+  "name": "Sheet to Gmail Summary",
+  "nodes": [
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        0,
+        0
+      ],
+      "id": "ecc2ddd2-0d7f-4d6b-a718-4d7134843ae7",
+      "name": "Trigger Manually"
+    },
+    {
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "value": "1_XKtytubvOLp3C4q7hZhEqYi8tiWdZim3Du30OxJ8E4",
+          "mode": "list",
+          "cachedResultName": "Course Tracker",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1_XKtytubvOLp3C4q7hZhEqYi8tiWdZim3Du30OxJ8E4/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "gid=0",
+          "mode": "list",
+          "cachedResultName": "Students",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1_XKtytubvOLp3C4q7hZhEqYi8tiWdZim3Du30OxJ8E4/edit#gid=0"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        224,
+        0
+      ],
+      "id": "383ed7f1-deaf-43c8-8315-a8a902934c5a",
+      "name": "Get row(s) in sheet",
+      "alwaysOutputData": true,
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "BTtyjU5DZGYVnHpg",
+          "name": "Google Sheets - Ganapathyraman"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Build ONE summary email from all sheet rows\nconst esc = (v) => String(v ?? '').trim()\n  .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');\n\n// Keep only rows that actually contain something\nconst rows = $input.all()\n  .map(item => item.json)\n  .filter(r => esc(r.Name) || esc(r.Course) || esc(r.Status));\n\n// Empty sheet → tell the If node not to send anything\nif (rows.length === 0) {\n  return [{ json: { hasData: false } }];\n}\n\nconst today = $now.setZone('Asia/Kolkata').toFormat('dd LLL yyyy');\n\n// Count learners per status, e.g. Completed: 2 · In Progress: 2\nconst counts = {};\nfor (const r of rows) {\n  const s = esc(r.Status) || 'Not set';\n  counts[s] = (counts[s] || 0) + 1;\n}\nconst statusLine = Object.entries(counts)\n  .map(([s, n]) => `${s}: <b>${n}</b>`)\n  .join(' &nbsp;·&nbsp; ');\n\nconst cell = 'padding:8px 12px;border:1px solid #ddd;';\nconst tableRows = rows.map((r, i) => `\n  <tr>\n    <td style=\"${cell}\">${i + 1}</td>\n    <td style=\"${cell}\">${esc(r.Name) || '-'}</td>\n    <td style=\"${cell}\">${esc(r.Course) || '-'}</td>\n    <td style=\"${cell}\">${esc(r.Status) || '-'}</td>\n  </tr>`).join('');\n\nconst body = `\n<div style=\"font-family:Arial,sans-serif;font-size:14px;color:#222;\">\n  <p>Hi,</p>\n  <p>Here is the latest data from the Course Tracker sheet (${today}).</p>\n  <p><b>Total learners:</b> ${rows.length}<br>${statusLine}</p>\n  <table style=\"border-collapse:collapse;\">\n    <tr style=\"background:#f2f2f2;\">\n      <th style=\"${cell}\">#</th><th style=\"${cell}\">Name</th>\n      <th style=\"${cell}\">Course</th><th style=\"${cell}\">Status</th>\n    </tr>\n    ${tableRows}\n  </table>\n  <p>Regards,<br>Your Automation Bot</p>\n</div>`;\n\nreturn [{\n  json: {\n    hasData: true,\n    subject: `Course Status Summary – ${rows.length} learners – ${today}`,\n    body\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        448,
+        0
+      ],
+      "id": "4e0302b3-9da9-4a86-97ed-3defe6516827",
+      "name": "Build Email"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "207ce6ff-b1a3-4c05-b6cb-d4fe8dbc40ea",
+              "leftValue": "={{ $json.hasData }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        672,
+        0
+      ],
+      "id": "1114f1e2-ccd8-4829-a307-4fd2cc9ae4ea",
+      "name": "Has Data"
+    },
+    {
+      "parameters": {
+        "sendTo": "=gansgpm@gmail.com",
+        "subject": "={{ $json.subject }}",
+        "message": "={{ $json.body }}",
+        "options": {
+          "appendAttribution": false
+        }
+      },
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.2,
+      "position": [
+        896,
+        -96
+      ],
+      "id": "4b056b0b-b6cd-44fa-9855-6fe673fe52a6",
+      "name": "Send Email",
+      "webhookId": "93973574-6a18-4ed2-9045-1e0b19fd1a50",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "gJoPgS3zVBzgQr3P",
+          "name": "Gmail Ganapathyraman"
+        }
+      }
+    },
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        896,
+        96
+      ],
+      "id": "cf640da2-f80c-42c1-938d-aba612a1c483",
+      "name": "Sheet Empty No Email"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Trigger Manually": {
+      "main": [
+        [
+          {
+            "node": "Get row(s) in sheet",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get row(s) in sheet": {
+      "main": [
+        [
+          {
+            "node": "Build Email",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Email": {
+      "main": [
+        [
+          {
+            "node": "Has Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Has Data": {
+      "main": [
+        [
+          {
+            "node": "Send Email",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Sheet Empty No Email",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate"
+  },
+  "versionId": "486f2a35-88ff-43de-94ea-694a2a8c272e",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "a3bc426882fc510d065edbe57913cf0ed5b66b6ec4b55f03d5f098fb80b0e0e7"
+  },
+  "nodeGroups": [],
+  "id": "DhSOHx6dFCNXVA5u",
+  "tags": []
+}
